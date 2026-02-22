@@ -15,8 +15,22 @@ type Message = {
   };
 };
 
+const welcomeMessages: Record<Mode, string> = {
+  career:
+    "Hello! You are in **Career Mode**. I'm here to help you navigate your professional journey. You can ask me about career paths, skill development, industry trends, or how to advance in your current role. What's on your mind today?",
+  interview:
+    "Hi! Welcome to **Interview Mode**. I can help you prepare for your upcoming interviews. We can practice common questions, discuss behavioral interview strategies, or refine your elevator pitch. Let's get you ready to ace that interview!",
+  cv: "Welcome to **CV Review Mode**. Please upload your CV or Resume (PDF, DOCX, or Image), and I'll provide detailed feedback. I can check for formatting, keyword optimization, and clarity to help your application stand out to recruiters.",
+  hr: "Hello! You are in **HR Policies Mode**. I can assist you with questions regarding company policies, employee benefits, leave procedures, and workplace conduct. What would you like to know?",
+};
+
 export default function Chat() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<Record<Mode, Message[]>>({
+    career: [{ role: "ai", text: welcomeMessages.career }],
+    interview: [{ role: "ai", text: welcomeMessages.interview }],
+    cv: [{ role: "ai", text: welcomeMessages.cv }],
+    hr: [{ role: "ai", text: welcomeMessages.hr }],
+  });
   const [mode, setMode] = useState<Mode>("career");
   const [input, setInput] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -25,22 +39,13 @@ export default function Chat() {
   const chatRef = useRef<HTMLDivElement | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
-  useEffect(() => {
-    const welcomeMessages: Record<Mode, string> = {
-      career:
-        "Hello! You are in **Career Mode**. I'm here to help you navigate your professional journey. You can ask me about career paths, skill development, industry trends, or how to advance in your current role. What's on your mind today?",
-      interview:
-        "Hi! Welcome to **Interview Mode**. I can help you prepare for your upcoming interviews. We can practice common questions, discuss behavioral interview strategies, or refine your elevator pitch. Let's get you ready to ace that interview!",
-      cv: "Welcome to **CV Review Mode**. Please upload your CV or Resume (PDF, DOCX, or Image), and I'll provide detailed feedback. I can check for formatting, keyword optimization, and clarity to help your application stand out to recruiters.",
-      hr: "Hello! You are in **HR Policies Mode**. I can assist you with questions regarding company policies, employee benefits, leave procedures, and workplace conduct. What would you like to know?",
-    };
+  const messages = conversations[mode];
 
-    setMessages([
-      {
-        role: "ai",
-        text: welcomeMessages[mode],
-      },
-    ]);
+  const setMessages = (newMessages: Message[]) => {
+    setConversations((prev) => ({ ...prev, [mode]: newMessages }));
+  };
+
+  useEffect(() => {
     setFile(null);
   }, [mode]);
 
@@ -78,13 +83,20 @@ export default function Chat() {
 
     const newMessages = [...messages, newMessage];
     setMessages([...newMessages, { role: "ai", text: "Thinking..." }]);
-
-    setMessages([...newMessages, { role: "ai", text: "Thinking..." }]);
     setLoading(true);
 
     const form = new FormData();
-    form.append("message", text);
+
+    let messageToSend = text;
+    const hasFileInHistory = messages.some((m) => m.file);
+
+    if (mode === "cv" && !file && hasFileInHistory) {
+      messageToSend = `[Instruction: The user is asking a follow-up question about the previously uploaded CV. Do NOT re-review the CV. Focus on answering the user's question directly.]\n\n${text}`;
+    }
+
+    form.append("message", messageToSend);
     form.append("mode", mode);
+    form.append("history", JSON.stringify(messages));
 
     if (file) form.append("file", file);
 
